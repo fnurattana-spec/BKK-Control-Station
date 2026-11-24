@@ -1,0 +1,1382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Station Control BKK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: control-room list view. Sticky tab rail, one summary strip, dense ruled rows grouped by the six duties. */
+:root{
+  --bg:#EBEFF2;--surface:#FFFFFF;--surface2:#F3F6F8;--ink:#12202B;--muted:#586774;--line:#D5DDE3;
+  --accent:#0B6E8A;--accent-ink:#FFFFFF;--accent-soft:#D9EEF4;
+  --good:#1B7A4B;--good-soft:#DCF1E5;--warn:#8F5600;--warn-soft:#FBE9C6;--bad:#B3261E;--bad-soft:#F8DDDA;
+  --f-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E161D;--surface:#16212A;--surface2:#1C2A35;--ink:#E6EDF2;--muted:#93A4B1;--line:#2B3A46;
+    --accent:#5CC0DA;--accent-ink:#06222B;--accent-soft:#143441;
+    --good:#5FD39A;--good-soft:#143A29;--warn:#F0B454;--warn-soft:#3F2E0E;--bad:#FF8F86;--bad-soft:#47201D;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E161D;--surface:#16212A;--surface2:#1C2A35;--ink:#E6EDF2;--muted:#93A4B1;--line:#2B3A46;
+  --accent:#5CC0DA;--accent-ink:#06222B;--accent-soft:#143441;
+  --good:#5FD39A;--good-soft:#143A29;--warn:#F0B454;--warn-soft:#3F2E0E;--bad:#FF8F86;--bad-soft:#47201D;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+h1,h2,h3,p,ol,ul{margin:0}
+body{
+  background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);-webkit-text-size-adjust:100%;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:10px 56px;
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+button,input,select,textarea{font:inherit;color:inherit}
+small{color:var(--muted);font-size:.78rem;line-height:1.4}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.wrap{max-width:980px;margin:0 auto}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.hd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:8px 0 6px}
+.hd>div{min-width:0}
+.eyebrow{font-size:.7rem;letter-spacing:.14em;color:var(--accent);font-weight:500}
+h1{font-size:1.55rem;line-height:1.25;font-weight:600;text-wrap:balance}
+.role{color:var(--muted);font-size:.85rem}
+.clk{text-align:right;flex:none}
+.clk b{display:block;font-size:1.7rem;line-height:1.1;font-weight:500}
+.clk span{font-size:.72rem;color:var(--muted)}
+.sim{font-size:.78rem;color:var(--warn);background:var(--warn-soft);border-radius:8px;padding:6px 10px;margin:4px 0 12px}
+
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.stats>div{padding:10px 12px;border-left:1px solid var(--line);min-width:0}
+.stats>div:first-child{border-left:0}
+.stats .k{display:block;font-size:.72rem;color:var(--muted)}
+.stats b{display:block;font-size:1.45rem;line-height:1.25;font-weight:600}
+.stats small{display:block;font-size:.68rem}
+.stats .good b{color:var(--good)}.stats .warn b{color:var(--warn)}.stats .bad b{color:var(--bad)}
+
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:11;background:var(--bg);display:flex;gap:6px;overflow-x:auto;padding:10px 0 8px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1 0 auto;display:flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:6px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer;white-space:nowrap;font-weight:500;font-size:.88rem}
+.tab .n{font-size:.72rem;color:var(--muted)}
+.tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tab[aria-selected="true"] .n{color:var(--accent-ink);opacity:.8}
+.bd{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--warn-soft);color:var(--warn);font:600 .72rem/20px var(--f-mono);text-align:center}
+.tab[aria-selected="true"] .bd{background:var(--accent-ink);color:var(--accent)}
+
+.sec-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:22px 2px 8px}
+.sec-h:first-child{margin-top:8px}
+h2{font-size:1rem;font-weight:600}
+.sec-h .sub{font-size:.75rem;color:var(--muted)}
+.list{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.row{display:flex;gap:12px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row>.grow{flex:1;min-width:0}
+.row b{font-weight:600}
+.row .t{display:block}
+.cols{display:grid;gap:0 18px;grid-template-columns:repeat(auto-fit,minmax(min(100%,430px),1fr))}
+.cols>*{min-width:0}
+.foot{font-size:.78rem;color:var(--muted);margin:8px 2px 0}
+.hint{font-size:.78rem;color:var(--muted);margin-top:8px}
+.pad{padding:14px}
+
+.chip{display:inline-flex;align-items:center;white-space:nowrap;padding:1px 9px;border-radius:99px;font-size:.74rem;font-weight:500;background:var(--surface2);color:var(--muted);line-height:1.6}
+.chip.good{background:var(--good-soft);color:var(--good)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.chip.acc{background:var(--accent-soft);color:var(--accent)}
+.chip.mut{background:transparent;border:1px solid var(--line)}
+.chip.mono{font-family:var(--f-mono)}
+
+.btn{min-height:40px;padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);cursor:pointer;font-weight:500;font-size:.85rem}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.dng{background:var(--bad);border-color:var(--bad);color:var(--surface)}
+.btn.sm{min-height:34px;padding:4px 11px;font-size:.8rem}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+
+.fl{border-top:1px solid var(--line)}
+.fl:first-child{border-top:0}
+.fl.past .fl-h{opacity:.62}
+.fl-h{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;padding:12px 14px;cursor:pointer}
+.fl.open .fl-h{background:var(--surface2)}
+.tm b{display:block;font:500 1.05rem/1.2 var(--f-mono)}
+.tm i{display:block;font:500 .74rem/1.3 var(--f-mono);font-style:normal;color:var(--warn)}
+.fi b{font-family:var(--f-mono);font-weight:600;margin-right:6px}
+.fi small{display:block}
+.st{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.pn{padding:4px 14px 16px;background:var(--surface2);border-top:1px solid var(--line)}
+.pn-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:10px 0 8px;font-size:.82rem;color:var(--muted)}
+.bar{height:6px;border-radius:6px;background:var(--line);overflow:hidden;flex:1}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:6px}
+.tasks{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.task{display:flex;gap:10px;align-items:center;min-height:46px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);text-align:left;cursor:pointer;font-size:.88rem}
+.task:disabled{cursor:default}
+.task .bx{width:20px;height:20px;border-radius:6px;border:2px solid var(--muted);display:grid;place-items:center;flex:none;font-size:.8rem;font-weight:700;line-height:1}
+.task.on .bx{background:var(--good);border-color:var(--good);color:var(--surface)}
+.task.on span:last-child{color:var(--muted)}
+
+.frm{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));align-items:end;margin-top:14px}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.fld label{font-size:.76rem;color:var(--muted)}
+.fld.wide{grid-column:1/-1}
+input[type=number],input[type=text],select,textarea{width:100%;min-height:40px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+textarea{min-height:76px;resize:vertical}
+
+.log{list-style:none;padding:0}
+.log li{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;padding:10px 14px;border-top:1px solid var(--line);font-size:.88rem}
+.log li:first-child{border-top:0}
+.log .tt{font:500 .8rem/1.7 var(--f-mono);color:var(--muted)}
+.log .ag{font-weight:600}
+
+.meter{height:10px;border-radius:10px;background:var(--line);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:10px}
+.meter.good i{background:var(--good)}.meter.warn i{background:var(--warn)}.meter.bad i{background:var(--bad)}
+.big{font:500 1.9rem/1.1 var(--f-mono)}
+.big small{font-size:.9rem;font-family:var(--f-body)}
+.split{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:10px}
+.pair{display:flex;gap:8px;flex-wrap:wrap}
+
+.track{position:relative;height:10px;border-radius:10px;background:var(--line);overflow:hidden;margin-top:6px}
+.track i{display:block;height:100%;border-radius:10px;background:var(--accent)}
+.track i.warn{background:var(--warn)}.track i.bad{background:var(--bad)}
+.track u{position:absolute;top:0;bottom:0;width:2px;background:var(--ink);opacity:.55}
+.bl{display:flex;justify-content:space-between;gap:10px;font-size:.86rem}
+.bl span:last-child{font:500 .78rem var(--f-mono);color:var(--muted);white-space:nowrap}
+.bud{padding:11px 14px;border-top:1px solid var(--line)}
+.bud:first-child{border-top:0}
+
+.chart{display:block;width:100%;height:auto}
+.chart .gl{stroke:var(--line);stroke-width:1}
+.chart .tg{stroke:var(--accent);stroke-width:1;stroke-dasharray:4 4}
+.chart .ln{fill:none;stroke:var(--accent);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.chart .ar{fill:var(--accent);fill-opacity:.12;stroke:none}
+.chart .dt{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.chart text{fill:var(--muted);font:10px var(--f-mono)}
+.chart text.em{fill:var(--ink);font-weight:600;font-size:11px}
+
+.rep{white-space:pre-wrap;overflow-wrap:anywhere;font:.8rem/1.75 var(--f-mono);background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.tbl{width:100%;border-collapse:collapse;font-size:.86rem}
+.tbl th,.tbl td{text-align:left;padding:10px 14px;border-top:1px solid var(--line)}
+.tbl tr:first-child th,.tbl tr:first-child td{border-top:0}
+.tbl td:last-child{text-align:right;font-family:var(--f-mono)}
+.scroll{overflow-x:auto}
+
+.air{position:relative;height:min(58vh,520px);min-height:320px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface2)}
+.air canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.air .msg{position:absolute;inset:0;display:grid;place-items:center;padding:20px;text-align:center;color:var(--muted);font-size:.9rem}
+.hud{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.srcs{margin:0;padding:12px 14px 12px 32px;font-size:.82rem;line-height:1.9}
+.srcs a{color:var(--accent)}
+.facts{display:grid;gap:8px 14px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-top:10px}
+.facts div{min-width:0}
+.facts small{display:block}
+.facts b{font-weight:500;font-size:.9rem}
+.note{font-size:.82rem;color:var(--muted);margin-top:10px;line-height:1.6}
+.note b{color:var(--ink);font-weight:600}
+.logo{width:40px;height:40px;border-radius:11px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;flex:none}
+.hd .brand{display:flex;gap:12px;align-items:center;min-width:0}
+.chart .bg{fill:var(--good)}.chart .bw{fill:var(--warn)}.chart .bn{fill:var(--accent)}
+.chart text.vl{fill:var(--ink);font-size:8.5px}
+.feed{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:7px;font-size:.84rem}
+.feed li{display:flex;gap:8px;align-items:center;min-width:0}
+.feed .tt{color:var(--muted);font-size:.76rem}
+#toast{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:0 max(16px,env(safe-area-inset-left,0px)) calc(env(safe-area-inset-bottom,0px) + 16px) max(16px,env(safe-area-inset-right,0px));pointer-events:none;z-index:30}
+#toast span{background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:99px;font-size:.85rem;max-width:100%}
+#toast:empty{display:none}
+
+@media (max-width:420px){
+  h1{font-size:1.35rem}
+  .fl-h{grid-template-columns:56px minmax(0,1fr) auto;padding:12px 12px}
+  .stats>div{padding:9px 8px}
+  .stats b{font-size:1.25rem}
+}
+@media (prefers-reduced-motion:no-preference){
+  .bar i,.meter i,.track i{transition:width .3s ease}
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="hd">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13.5 21 4l-5 16-4.5-6.5L3 13.5Z"/><path d="m11.5 13.5 9.5-9.5"/></svg></span>
+      <div>
+        <p class="eyebrow mono">STATION CONTROL · BKK</p>
+        <h1>Suvarnabhumi Station</h1>
+        <p class="role">Station Manager · Station Control Centre</p>
+      </div>
+    </div>
+    <div class="clk"><b class="mono" id="clock">--:--</b><span id="dt"></span></div>
+  </header>
+  <p class="sim">Tabs 1–6 and the 3D airport use simulated demo data. The BKK→FUK tab uses real data gathered from external websites.</p>
+  <section class="stats" id="stats" aria-label="Today's status summary"></section>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Station manager duties"></nav>
+  <main id="view"></main>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const tfmt=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+const dfmt=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Bangkok',weekday:'long',day:'numeric',month:'long',year:'numeric'});
+const wfmt=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Bangkok',weekday:'short',day:'numeric'});
+const nowHM=()=>tfmt.format(new Date());
+const addMin=(hm,m)=>{const [h,mi]=hm.split(':').map(Number);const t=(h*60+mi+m)%1440;return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')};
+const num=n=>Number(n).toLocaleString('en-US');
+
+const TABS=[
+  {k:'ops',n:1,t:'Flights'},{k:'pax',n:2,t:'Passengers'},{k:'safety',n:3,t:'Safety'},
+  {k:'coord',n:4,t:'Coordination'},{k:'team',n:5,t:'Team'},{k:'report',n:6,t:'Reports'},
+  {k:'fuk',n:'+',t:'BKK→FUK'},{k:'air',n:'+',t:'3D Airport'}
+];
+const TASKS=[
+  {k:'clean',t:'Cabin cleaning'},{k:'fuel',t:'Refuelling'},{k:'cat',t:'Catering uplift'},
+  {k:'bag',t:'Baggage & cargo loading'},{k:'wb',t:'Weight & Balance · Load sheet'},{k:'brd',t:'Passenger boarding'}
+];
+const REASONS={
+  '93':'93 · Aircraft rotation','41':'41 · Technical defect','71':'71 · Weather at departure station',
+  '81':'81 · ATC restrictions','87':'87 · Airport facilities'
+};
+const STS=['Awaiting pickup','Being assisted','Delivered to aircraft'];
+const STS_NEXT=['Pick up passenger','Deliver to aircraft',''];
+const CST=['Case opened','Following up','Case closed'];
+const CST_NEXT=['Start follow-up','Close case',''];
+const IST=['Open','Investigating','Closed'];
+const IST_NEXT=['Start investigation','Close',''];
+const KIND=['bad','acc','good'];
+const BASE={dep:34,on:32};
+const T=(...ks)=>{const o={};TASKS.forEach(t=>{o[t.k]=ks.includes(t.k)});return o};
+
+const S={
+  tab:'ops',sel:'PG 275',confirm:null,form:{},
+  flights:[
+    {id:'PG 263',dest:'Phuket (HKT)',std:'16:30',gate:'D2',ac:'A319',pax:121,cap:144,delay:0,reason:'',ci:true,departed:true,cancelled:false,tasks:T('clean','fuel','cat','bag','wb','brd')},
+    {id:'PG 125',dest:'Chiang Mai (CNX)',std:'17:15',gate:'D4',ac:'A319',pax:133,cap:144,delay:8,reason:'93',ci:true,departed:true,cancelled:false,tasks:T('clean','fuel','cat','bag','wb','brd')},
+    {id:'PG 273',dest:'Samui (USM)',std:'17:55',gate:'D3',ac:'A320',pax:140,cap:156,delay:22,reason:'81',ci:true,departed:true,cancelled:false,tasks:T('clean','fuel','cat','bag','wb','brd')},
+    {id:'PG 275',dest:'Samui (USM)',std:'19:05',gate:'D5',ac:'A320',pax:148,cap:156,delay:0,reason:'',ci:true,departed:false,cancelled:false,tasks:T('clean','fuel','cat','wb','brd')},
+    {id:'PG 211',dest:'Phuket (HKT)',std:'19:20',gate:'D2',ac:'A319',pax:109,cap:144,delay:0,reason:'',ci:true,departed:false,cancelled:false,tasks:T('clean','fuel')},
+    {id:'PG 163',dest:'Krabi (KBV)',std:'19:55',gate:'D6',ac:'ATR 72',pax:64,cap:70,delay:35,reason:'93',ci:true,departed:false,cancelled:false,tasks:T('clean')},
+    {id:'PG 127',dest:'Chiang Mai (CNX)',std:'20:30',gate:'D4',ac:'A319',pax:97,cap:144,delay:0,reason:'',ci:true,departed:false,cancelled:false,tasks:T()},
+    {id:'PG 231',dest:'Trat (TDX)',std:'21:10',gate:'D3',ac:'ATR 72',pax:41,cap:70,delay:0,reason:'',ci:false,departed:false,cancelled:false,tasks:T()},
+    {id:'PG 935',dest:'Singapore (SIN)',std:'21:45',gate:'E1',ac:'A320',pax:118,cap:156,delay:0,reason:'',ci:false,departed:false,cancelled:false,tasks:T()}
+  ],
+  log:[
+    {t:'18:32',x:'PG 273 departed 22 min late · 81 ATC restrictions'},
+    {t:'18:20',x:'PG 163 delayed 35 min · 93 Aircraft rotation. Passengers informed at the gate'},
+    {t:'17:40',x:'PG 125 departed 8 min late (within the on-time window)'},
+    {t:'16:42',x:'PG 263 departed on time'}
+  ],
+  specials:[
+    {id:1,type:'WCHC',d:'Wheelchair, cannot walk unaided · 1 pax',f:'PG 275',staff:'Manee',st:1},
+    {id:2,type:'UMNR',d:'Unaccompanied minor, age 9 · 1 pax',f:'PG 211',staff:'Prang',st:0},
+    {id:3,type:'VIP',d:'VIP greeted at the special counter · 2 pax',f:'PG 127',staff:'Thana',st:0},
+    {id:4,type:'WCHR',d:'Elderly, cannot climb stairs · 2 pax',f:'PG 163',staff:'Suda',st:0},
+    {id:5,type:'MEDA',d:'Needs medical assistance, medical certificate checked',f:'PG 935',staff:'Wichai',st:0}
+  ],
+  lounge:{n:74,cap:120},
+  lng:{auto:true,log:[],pin:0,t:2},
+  conn:[
+    {a:'Inbound PG 262 Phuket',b:'Outbound PG 935 Singapore',n:4,left:55},
+    {a:'Inbound PG 124 Chiang Mai',b:'Outbound PG 275 Samui',n:3,left:22},
+    {a:'Inbound PG 272 Samui',b:'Outbound PG 127 Chiang Mai',n:7,left:70}
+  ],
+  cases:[
+    {id:'BG-2610-021',t:'Delayed baggage',d:'PG 273 · 1 bag left at origin, to be delivered to the passenger within 24 h',st:1},
+    {id:'BG-2610-022',t:'Damaged baggage',d:'Wheel broken, photos taken as evidence, awaiting compensation assessment',st:0},
+    {id:'CP-2610-009',t:'Complaint',d:'Long check-in queue on the Samui flight, reply due within 3 days',st:0},
+    {id:'BG-2610-020',t:'Left baggage',d:'Returned to the owner, case closed',st:2}
+  ],
+  comp:[
+    {t:'ISAGO internal audit, Q4',due:'Due 20 Dec 2026',p:70,st:'good'},
+    {t:'Review station operations manual against CAAT requirements',due:'Due 31 Dec 2026',p:45,st:'good'},
+    {t:'Annual dangerous goods (DG) training, round 2',due:'Due 15 Jan 2027',p:30,st:'warn'},
+    {t:'Renew staff airside passes (AOT)',due:'Due 10 Dec 2026',p:60,st:'warn'},
+    {t:'Station emergency response drill (ERP)',due:'Last drill 14 Sep 2026',p:100,st:'good'}
+  ],
+  dg:[
+    {t:'Check NOTOC matches the dangerous goods actually loaded',on:true},
+    {t:'Segregate lithium batteries and power banks as required',on:true},
+    {t:'Control access to restricted (airside) areas',on:true},
+    {t:'Reconcile loaded baggage with boarded passengers',on:false},
+    {t:'Inspect ground support equipment (GSE) before use',on:true},
+    {t:'Check ramp fire extinguishers and first-aid kits are ready',on:false}
+  ],
+  inc:[
+    {id:'SR-2610-017',c:'Ramp safety',sev:'Medium',d:'Tug reversed near the stairs without a marshaller at gate D3, no injuries',st:1},
+    {id:'SR-2610-018',c:'Dangerous goods',sev:'Low',d:'One power bank found in checked baggage, removed before the hold was closed',st:2}
+  ],
+  incNext:19,
+  agencies:[
+    {n:'AOT Suvarnabhumi',s:'Stands, gates and airside areas',note:'Two stands temporarily closed for repair. Gates D2–D6 operating normally',st:'good'},
+    {n:'Immigration',s:'Departure counters, international flights',note:'Normal. PG 935 passengers start queuing at 19:30',st:'good'},
+    {n:'Customs',s:'International cargo and parcels',note:'Normal. PG 935 documents complete',st:'good'},
+    {n:'Disease Control Checkpoint',s:'Health screening of international passengers',note:'Normal. Following Department of Disease Control announcements',st:'good'},
+    {n:'Ground Handling Provider',s:'Tugs, stairs and baggage loaders',note:'One passenger stair out of service. Spare requested before 19:00',st:'warn'},
+    {n:'Flight Catering',s:'Onboard food and beverages',note:'PG 211 catering 10 min behind plan, monitoring',st:'warn'},
+    {n:'Partner Airlines',s:'Codeshare and interline passenger and baggage transfers',note:'Normal',st:'good'}
+  ],
+  coord:[
+    {t:'17:50',a:'Flight Catering',m:'Confirm PG 211 catering delivery time by 19:00'},
+    {t:'16:05',a:'AOT Suvarnabhumi',m:'Request gate change for PG 163 from D6 to D4 if delay exceeds 1 h'}
+  ],
+  roster:[
+    {n:'Morning shift',h:'05:00–13:00',from:5,to:13,need:24,have:24},
+    {n:'Afternoon shift',h:'13:00–21:00',from:13,to:21,need:26,have:24},
+    {n:'Night shift',h:'21:00–05:00',from:21,to:5,need:14,have:13}
+  ],
+  training:[
+    {t:'Dangerous goods (DG) acceptance staff',who:'8 staff',d:41},
+    {t:'AVSEC · Aviation security',who:'Whole station',d:96},
+    {t:'Ramp safety',who:'22 staff',d:18},
+    {t:'Load control',who:'5 staff',d:9}
+  ],
+  budget:[
+    {n:'Overtime',b:420,a:388},
+    {n:'Ground handling fees',b:1850,a:1612},
+    {n:'Passenger care during delays',b:260,a:287},
+    {n:'Training',b:150,a:96},
+    {n:'Materials and equipment',b:180,a:121}
+  ],
+  contracts:[
+    {t:'Ground handling contract',d:128},
+    {t:'Flight catering contract',d:64},
+    {t:'Cabin cleaning contract',d:33},
+    {t:'Counter and office lease',d:210}
+  ],
+  imp:[
+    {t:'Add 1 spare passenger stair between 18:00 and 21:00 to reduce delays caused by waiting for stairs',sent:false},
+    {t:'Open Samui check-in counters 15 min earlier because evening queues are long',sent:false},
+    {t:'Review catering delivery times with Flight Catering for flights between 19:00 and 20:00',sent:true},
+    {t:'Train 2 more staff in load control before current certificates expire',sent:false}
+  ],
+  trend:[89.5,91.2,93.0,90.1,92.4,94.0]
+};
+
+/* ---------- helpers ---------- */
+const fl=id=>S.flights.find(f=>f.id===id);
+const val=(id,def)=>S.form[id]!==undefined?S.form[id]:def;
+const doneCount=f=>TASKS.filter(t=>f.tasks[t.k]).length;
+const addLog=x=>{S.log.unshift({t:nowHM(),x});S.log=S.log.slice(0,30)};
+const chip=(k,t,extra)=>`<span class="chip ${k||''} ${extra||''}">${t}</span>`;
+const opts=(list,cur)=>list.map(o=>{const v=Array.isArray(o)?o[0]:o;const l=Array.isArray(o)?o[1]:o;return `<option value="${esc(v)}" ${String(cur)===String(v)?'selected':''}>${esc(l)}</option>`}).join('');
+const sortStd=(a,b)=>a.std.localeCompare(b.std);
+
+function phase(f){
+  if(f.cancelled) return {k:'bad',t:'Cancelled'};
+  if(f.departed) return {k:'mut',t:'Departed'};
+  const n=doneCount(f);
+  if(n===6) return {k:'good',t:'Ready to depart'};
+  if(f.tasks.brd) return {k:'acc',t:'Boarding'};
+  if(n>=1) return {k:'acc',t:'Preparing aircraft'};
+  if(f.ci) return {k:'',t:'Check-in open'};
+  return {k:'mut',t:'Check-in not yet open'};
+}
+function otp(){
+  const dep=S.flights.filter(f=>f.departed);
+  const on=dep.filter(f=>f.delay<=15).length;
+  return (BASE.on+on)/(BASE.dep+dep.length)*100;
+}
+const openItems=()=>S.cases.filter(c=>c.st<2).length+S.inc.filter(i=>i.st<2).length;
+function badge(k){
+  if(k==='ops') return S.flights.filter(f=>!f.departed&&!f.cancelled&&f.delay>0).length;
+  if(k==='pax') return S.cases.filter(c=>c.st<2).length+S.specials.filter(s=>s.st===0).length;
+  if(k==='safety') return S.inc.filter(i=>i.st<2).length+S.dg.filter(x=>!x.on).length;
+  if(k==='coord') return S.agencies.filter(a=>a.st!=='good').length;
+  if(k==='team') return S.roster.filter(r=>r.have<r.need).length;
+  if(k==='report') return S.imp.filter(i=>!i.sent).length;
+  return 0;
+}
+function curShiftIdx(){
+  const h=parseInt(nowHM().slice(0,2),10);
+  return S.roster.findIndex(r=>r.from<r.to?(h>=r.from&&h<r.to):(h>=r.from||h<r.to));
+}
+let toastTimer=null;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.innerHTML='<span>'+esc(msg)+'</span>';
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{el.innerHTML=''},2400);
+}
+
+/* ---------- chrome ---------- */
+function renderStats(){
+  const o=otp();
+  const dep=BASE.dep+S.flights.filter(f=>f.departed).length;
+  const tot=BASE.dep+S.flights.length;
+  const late=S.flights.filter(f=>!f.cancelled&&f.delay>15).length;
+  const open=openItems();
+  const ok=o>=90?'good':(o>=85?'warn':'bad');
+  document.getElementById('stats').innerHTML=
+    `<div class="${ok}"><span class="k">OTP today</span><b class="mono">${o.toFixed(1)}%</b><small>Target ≥ 90%</small></div>`+
+    `<div><span class="k">Departed</span><b class="mono">${dep}/${tot}</b><small>flights</small></div>`+
+    `<div class="${late?'warn':'good'}"><span class="k">Late &gt; 15 min</span><b class="mono">${late}</b><small>flights</small></div>`+
+    `<div class="${open?'warn':'good'}"><span class="k">Open items</span><b class="mono">${open}</b><small>cases/incidents</small></div>`;
+}
+function renderTabs(){
+  document.getElementById('tabs').innerHTML=TABS.map(t=>{
+    const b=badge(t.k);
+    return `<button class="tab" role="tab" aria-selected="${S.tab===t.k}" data-a="tab" data-v="${t.k}"><span class="n mono">${t.n}</span>${t.t}${b>0?`<span class="bd">${b}</span>`:''}</button>`;
+  }).join('');
+}
+
+/* ---------- 1 Flights ---------- */
+function flightRow(f){
+  const p=phase(f), open=S.sel===f.id;
+  const past=f.departed||f.cancelled;
+  return `<article class="fl ${open?'open':''} ${past?'past':''}">
+    <button class="fl-h" data-a="sel" data-id="${esc(f.id)}" aria-expanded="${open}">
+      <span class="tm"><b>${f.std}</b>${f.delay>0&&!f.cancelled?`<i>→ ${addMin(f.std,f.delay)}</i>`:''}</span>
+      <span class="fi"><b>${f.id}</b>${esc(f.dest)}<small>Gate ${f.gate} · ${f.ac} · Pax ${f.pax}/${f.cap}</small></span>
+      <span class="st">${chip(p.k,p.t)}${f.delay>0&&!f.cancelled?chip('warn','+'+f.delay+' min','mono'):''}</span>
+    </button>
+    ${open?panel(f):''}
+  </article>`;
+}
+function panel(f){
+  const n=doneCount(f), pct=Math.round(n/6*100), live=!f.departed&&!f.cancelled;
+  const tasks=TASKS.map(t=>{
+    const on=!!f.tasks[t.k];
+    return `<button class="task ${on?'on':''}" role="checkbox" aria-checked="${on}" data-a="task" data-id="${esc(f.id)}" data-k="${t.k}" ${live?'':'disabled'}><span class="bx">${on?'✓':''}</span><span>${t.t}</span></button>`;
+  }).join('');
+  let ctl='';
+  if(live){
+    const confirming=S.confirm===f.id;
+    ctl=`<div class="frm">
+        <div class="fld"><label for="dmin">Delay (minutes)</label><input id="dmin" type="number" min="0" step="5" inputmode="numeric" value="${esc(val('dmin',f.delay||0))}"></div>
+        <div class="fld"><label for="dcode">Reason (IATA delay code)</label><select id="dcode">${opts(Object.entries(REASONS),val('dcode',f.reason||'93'))}</select></div>
+        <button class="btn" data-a="delay" data-id="${esc(f.id)}">Save delay</button>
+      </div>
+      <div class="btns">
+        <button class="btn pri" data-a="release" data-id="${esc(f.id)}" ${n<6?'disabled':''}>Release flight</button>
+        ${confirming
+          ?`<button class="btn dng" data-a="cancel-yes" data-id="${esc(f.id)}">Confirm cancel ${f.id}</button><button class="btn" data-a="cancel-no">Keep flight</button>`
+          :`<button class="btn" data-a="cancel" data-id="${esc(f.id)}">Cancel flight</button>`}
+      </div>
+      ${n<6?'<p class="hint">The flight can be released once all 6 steps are done</p>':''}`;
+  }
+  const rs=f.delay>0&&f.reason?`<p class="hint">Delay code ${esc(REASONS[f.reason]||f.reason)}</p>`:'';
+  return `<div class="pn">
+    <div class="pn-top"><span>Turnaround steps ${n}/6</span><div class="bar"><i style="width:${pct}%"></i></div><span class="mono">${pct}%</span></div>
+    <div class="tasks">${tasks}</div>
+    ${rs}${ctl}
+  </div>`;
+}
+function vOps(){
+  const act=S.flights.filter(f=>!f.departed&&!f.cancelled).sort(sortStd);
+  const past=S.flights.filter(f=>f.departed||f.cancelled).sort(sortStd);
+  return `<div class="sec-h"><h2>Flights in progress</h2><span class="sub mono">${act.length} flights</span></div>
+    <div class="list">${act.length?act.map(flightRow).join(''):'<div class="row"><span class="grow">No pending flights at the moment</span></div>'}</div>
+    <div class="sec-h"><h2>Departed / cancelled</h2><span class="sub mono">${past.length} flights</span></div>
+    <div class="list">${past.map(flightRow).join('')}</div>
+    <p class="foot">Another ${BASE.dep} flights departed earlier today, ${BASE.on} of them on time, already counted in OTP.</p>
+    <div class="sec-h"><h2>Control centre event log</h2><span class="sub">Latest first</span></div>
+    <ol class="log list">${S.log.map(l=>`<li><span class="tt">${l.t}</span><span>${esc(l.x)}</span></li>`).join('')}</ol>`;
+}
+
+/* ---------- 2 Passengers ---------- */
+function careRows(){
+  const rows=S.flights.filter(f=>!f.departed&&(f.cancelled||f.delay>=30)).sort(sortStd);
+  if(!rows.length) return '<div class="row"><span class="grow">No flights need special care right now</span></div>';
+  return rows.map(f=>{
+    let lv,k;
+    if(f.cancelled){lv='Rebook or refund, and consider accommodation';k='bad'}
+    else if(f.delay>=180){lv='Meal vouchers, and consider accommodation';k='bad'}
+    else if(f.delay>=60){lv='Meal and drink vouchers';k='warn'}
+    else{lv='Water and snacks';k='warn'}
+    return `<div class="row"><div class="grow"><span class="t"><b class="mono">${f.id}</b> ${f.cancelled?'Cancelled':'Delayed '+f.delay+' min'}</span><small>${lv}</small></div>${chip(k,f.pax+' passengers')}</div>`;
+  }).join('');
+}
+function loungeCard(){
+  const L=S.lounge, g=S.lng, lp=Math.round(L.n/L.cap*100);
+  const lk=lp>=90?'bad':(lp>=75?'warn':'good');
+  const feed=g.log.length
+    ?g.log.map(e=>`<li><span class="tt mono">${e.t}</span>${chip(e.k==='in'?'good':'mut',e.k==='in'?'In':'Out')}<span>Guest ${e.k==='in'?'entered':'left'} · ${e.n}/${L.cap}</span></li>`).join('')
+    :'<li><small>Guests entering and leaving will appear here.</small></li>';
+  return `<div class="split"><div class="big">${L.n}<small> / ${L.cap} seats</small></div>${chip(lk,lp+'%','mono')}</div>
+    <div class="meter ${lk}"><i style="width:${lp}%"></i></div>
+    <ul class="feed">${feed}</ul>
+    <div class="btns"><button class="btn sm ${g.auto?'pri':''}" data-a="lng-auto" aria-pressed="${g.auto}">Live simulation: ${g.auto?'On':'Off'}</button><button class="btn sm" data-a="lounge" data-n="-5" ${L.n<5?'disabled':''}>5 guests leave</button><button class="btn sm" data-a="lounge" data-n="5" ${L.n+5>L.cap?'disabled':''}>5 guests enter</button></div>`;
+}
+function vPax(){
+  return `<div class="cols"><div>
+      <div class="sec-h"><h2>Special-assistance passengers</h2><span class="sub mono">${S.specials.filter(s=>s.st===2).length}/${S.specials.length} done</span></div>
+      <div class="list">${S.specials.map(s=>`<div class="row">
+        <div class="grow"><span class="t">${chip('acc',s.type,'mono')} <b class="mono">${s.f}</b></span><small>${esc(s.d)} · Assigned to ${esc(s.staff)}</small></div>
+        <div class="st">${chip(KIND[s.st],STS[s.st])}${s.st<2?`<button class="btn sm" data-a="sp" data-id="${s.id}">${STS_NEXT[s.st]}</button>`:''}</div>
+      </div>`).join('')}</div>
+
+      <div class="sec-h"><h2>Care during flight delays</h2><span class="sub">Station guideline (example)</span></div>
+      <div class="list">${careRows()}</div>
+    </div><div>
+      <div class="sec-h"><h2>Lounge</h2><span class="sub">Current occupancy</span></div>
+      <div class="list pad" id="lng-card">${loungeCard()}</div>
+
+      <div class="sec-h"><h2>Connecting passengers</h2><span class="sub">Time before gate closes</span></div>
+      <div class="list">${S.conn.map(c=>`<div class="row"><div class="grow"><span class="t">${esc(c.a)} → ${esc(c.b)}</span><small>${c.n} pax</small></div>${chip(c.left<=25?'warn':'good',c.left+' min left','mono')}</div>`).join('')}</div>
+
+      <div class="sec-h"><h2>Baggage cases and complaints</h2><span class="sub mono">${S.cases.filter(c=>c.st<2).length} open</span></div>
+      <div class="list">${S.cases.map(c=>`<div class="row">
+        <div class="grow"><span class="t"><b>${esc(c.t)}</b> <span class="mono" style="color:var(--muted);font-size:.78rem">${c.id}</span></span><small>${esc(c.d)}</small></div>
+        <div class="st">${chip(KIND[c.st],CST[c.st])}${c.st<2?`<button class="btn sm" data-a="case" data-id="${c.id}">${CST_NEXT[c.st]}</button>`:''}</div>
+      </div>`).join('')}</div>
+    </div></div>`;
+}
+
+/* ---------- 3 Safety ---------- */
+function vSafety(){
+  const dgDone=S.dg.filter(x=>x.on).length;
+  return `<div class="cols"><div>
+      <div class="sec-h"><h2>Compliance status</h2><span class="sub">CAAT · ICAO · IATA · AOT</span></div>
+      <div class="list">${S.comp.map(c=>`<div class="bud">
+        <div class="bl"><span>${esc(c.t)}</span>${chip(c.st,c.st==='good'?'On plan':'Needs attention')}</div>
+        <div class="track"><i class="${c.st==='warn'?'warn':''}" style="width:${c.p}%"></i></div>
+        <div class="bl" style="margin-top:4px"><small>${esc(c.due)}</small><span>${c.p}%</span></div>
+      </div>`).join('')}</div>
+
+      <div class="sec-h"><h2>Shift checklist</h2><span class="sub mono">${dgDone}/${S.dg.length} items</span></div>
+      <div class="list pad"><div class="tasks">${S.dg.map((x,i)=>`<button class="task ${x.on?'on':''}" role="checkbox" aria-checked="${x.on}" data-a="dg" data-i="${i}"><span class="bx">${x.on?'✓':''}</span><span>${esc(x.t)}</span></button>`).join('')}</div></div>
+    </div><div>
+      <div class="sec-h"><h2>Incident reports</h2><span class="sub mono">${S.inc.filter(i=>i.st<2).length} open</span></div>
+      <div class="list">${S.inc.map(i=>`<div class="row">
+        <div class="grow"><span class="t"><b>${esc(i.c)}</b> <span class="mono" style="color:var(--muted);font-size:.78rem">${i.id}</span></span><small>Severity: ${esc(i.sev)} · ${esc(i.d)}</small></div>
+        <div class="st">${chip(KIND[i.st],IST[i.st])}${i.st<2?`<button class="btn sm" data-a="inc" data-id="${i.id}">${IST_NEXT[i.st]}</button>`:''}</div>
+      </div>`).join('')}</div>
+      <div class="list pad" style="margin-top:12px">
+        <h3 style="font-size:.92rem">New incident report</h3>
+        <div class="frm">
+          <div class="fld"><label for="inc-c">Category</label><select id="inc-c">${opts(['Ramp safety','Aircraft or equipment damage','Dangerous goods','Security','Other'],val('inc-c','Ramp safety'))}</select></div>
+          <div class="fld"><label for="inc-s">Severity</label><select id="inc-s">${opts(['Low','Medium','High'],val('inc-s','Low'))}</select></div>
+          <div class="fld wide"><label for="inc-d">Details</label><textarea id="inc-d" placeholder="What happened, where, when, and what was done first">${esc(val('inc-d',''))}</textarea></div>
+        </div>
+        <div class="btns"><button class="btn pri" data-a="inc-add">Save incident</button></div>
+      </div>
+
+      <div class="sec-h"><h2>Station emergency plan</h2><span class="sub">Last drill 14 Sep 2026</span></div>
+      <div class="list">
+        <div class="row"><div class="grow"><span class="t"><b>Incident Commander (IC)</b></span><small>Station Manager</small></div>${chip('good','Ready')}</div>
+        <div class="row"><div class="grow"><span class="t"><b>Deputy Incident Commander</b></span><small>Duty shift supervisor</small></div>${chip('good','Ready')}</div>
+        <div class="row"><div class="grow"><span class="t"><b>Passenger and family care</b></span><small>Passenger services supervisor</small></div>${chip('good','Ready')}</div>
+      </div>
+    </div></div>`;
+}
+
+/* ---------- 4 Coordination ---------- */
+function vCoord(){
+  const names=S.agencies.map(a=>a.n);
+  return `<div class="cols"><div>
+      <div class="sec-h"><h2>Coordinating agencies</h2><span class="sub mono">${S.agencies.filter(a=>a.st!=='good').length} to monitor</span></div>
+      <div class="list">${S.agencies.map(a=>`<div class="row">
+        <div class="grow"><span class="t"><b>${esc(a.n)}</b></span><small>${esc(a.s)}</small><small style="display:block;color:var(--ink)">${esc(a.note)}</small></div>
+        ${chip(a.st,a.st==='good'?'Normal':'Monitor')}
+      </div>`).join('')}</div>
+    </div><div>
+      <div class="sec-h"><h2>Coordination log</h2></div>
+      <div class="list pad">
+        <div class="frm" style="margin-top:0">
+          <div class="fld"><label for="co-a">Agency</label><select id="co-a">${opts(names,val('co-a',names[0]))}</select></div>
+          <div class="fld wide"><label for="co-m">Message</label><input id="co-m" type="text" placeholder="e.g. Request a spare passenger stair at gate D5" value="${esc(val('co-m',''))}"></div>
+        </div>
+        <div class="btns"><button class="btn pri" data-a="co-add">Add entry</button></div>
+      </div>
+      <ol class="log list" style="margin-top:12px">${S.coord.map(l=>`<li><span class="tt">${l.t}</span><span><span class="ag">${esc(l.a)}</span><br>${esc(l.m)}</span></li>`).join('')}</ol>
+    </div></div>`;
+}
+
+/* ---------- 5 Team ---------- */
+function vTeam(){
+  const o=otp(), cur=curShiftIdx();
+  const pace=84;
+  const tb=S.budget.reduce((s,x)=>s+x.b,0), ta=S.budget.reduce((s,x)=>s+x.a,0);
+  const kpis=[
+    {n:'OTP today',v:o.toFixed(1)+'%',t:'Target ≥ 90%',ok:o>=90},
+    {n:'Baggage errors per 1,000 passengers',v:'4.1',t:'Target ≤ 5',ok:true},
+    {n:'Passenger satisfaction',v:'4.6 / 5',t:'Target ≥ 4.5',ok:true},
+    {n:'Average complaint response time',v:'1.8 days',t:'Target ≤ 3 days',ok:true}
+  ];
+  return `<div class="cols"><div>
+      <div class="sec-h"><h2>Staffing by shift</h2><span class="sub">Today</span></div>
+      <div class="list">${S.roster.map((r,i)=>{
+        const short=r.have<r.need, pct=Math.min(100,Math.round(r.have/r.need*100));
+        return `<div class="bud">
+          <div class="bl"><span><b>${r.n}</b> <small>${r.h}</small> ${i===cur?chip('acc','Now'):''}</span><span>${r.have}/${r.need} staff</span></div>
+          <div class="track"><i class="${short?'warn':''}" style="width:${pct}%"></i></div>
+          ${short?`<div class="btns" style="margin-top:8px"><button class="btn sm" data-a="staff" data-i="${i}">Call in 1 overtime staff member</button></div>`:''}
+        </div>`}).join('')}</div>
+
+      <div class="sec-h"><h2>Team KPIs</h2></div>
+      <div class="list">${kpis.map(k=>`<div class="row"><div class="grow"><span class="t">${k.n}</span><small>${k.t}</small></div><b class="mono">${k.v}</b>${chip(k.ok?'good':'warn',k.ok?'On target':'Below target')}</div>`).join('')}</div>
+
+      <div class="sec-h"><h2>Training</h2><span class="sub">Days until certificate expires</span></div>
+      <div class="list">${S.training.map(x=>`<div class="row"><div class="grow"><span class="t">${esc(x.t)}</span><small>${esc(x.who)}</small></div>${chip(x.d<=14?'bad':(x.d<=30?'warn':'good'),'in '+x.d+' days','mono')}</div>`).join('')}</div>
+    </div><div>
+      <div class="sec-h"><h2>Budget this month</h2><span class="sub">Unit: thousand baht · month elapsed ${pace}%</span></div>
+      <div class="list">${S.budget.map(x=>{
+        const p=x.a/x.b*100, k=p>100?'bad':(p>92?'warn':'');
+        return `<div class="bud"><div class="bl"><span>${esc(x.n)}</span>${chip(p>100?'bad':(p>92?'warn':'good'),Math.round(p)+'%','mono')}</div>
+          <div class="track"><i class="${k}" style="width:${Math.min(100,p)}%"></i><u style="left:${pace}%"></u></div>
+          <div class="bl" style="margin-top:4px"><small>Spent</small><span>${num(x.a)} / ${num(x.b)}</span></div></div>`}).join('')}
+        <div class="bud"><div class="bl"><span><b>Total</b></span><span>${num(ta)} / ${num(tb)} (${Math.round(ta/tb*100)}%)</span></div></div>
+      </div>
+      <p class="foot">The black line shows the share of the month elapsed, to check whether spending is ahead of plan.</p>
+
+      <div class="sec-h"><h2>Provider contracts</h2><span class="sub">Days until contract ends</span></div>
+      <div class="list">${S.contracts.map(x=>`<div class="row"><div class="grow"><span class="t">${esc(x.t)}</span></div>${chip(x.d<=45?'warn':'good','in '+x.d+' days','mono')}</div>`).join('')}</div>
+    </div></div>`;
+}
+
+/* ---------- 6 Reports ---------- */
+function otpChart(){
+  const live=otp();
+  const pts=S.trend.concat([live]);
+  const W=340,H=180,Lm=36,Rm=16,Tm=22,Bm=28,min=84,max=100;
+  const x=i=>Lm+i*(W-Lm-Rm)/(pts.length-1);
+  const y=v=>Tm+(max-Math.max(min,Math.min(max,v)))*(H-Tm-Bm)/(max-min);
+  const labels=pts.map((_,i)=>{
+    const d=new Date(Date.now()-(pts.length-1-i)*86400000);
+    const p=wfmt.formatToParts(d);
+    const wd=(p.find(q=>q.type==='weekday')||{value:''}).value;
+    const dy=(p.find(q=>q.type==='day')||{value:''}).value;
+    return wd+dy;
+  });
+  const grid=[85,90,95,100].map(v=>`<line class="${v===90?'tg':'gl'}" x1="${Lm}" x2="${W-Rm}" y1="${y(v)}" y2="${y(v)}"/><text x="${Lm-6}" y="${y(v)+3}" text-anchor="end">${v}%</text>`).join('');
+  const line=pts.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join(' ');
+  const area=line+` L${x(pts.length-1).toFixed(1)} ${y(min)} L${x(0).toFixed(1)} ${y(min)} Z`;
+  const xl=labels.map((l,i)=>`<text x="${x(i).toFixed(1)}" y="${H-8}" text-anchor="middle">${esc(l)}</text>`).join('');
+  const last=pts.length-1;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="OTP trend for the last 7 days, today ${live.toFixed(1)} percent">
+    ${grid}<text x="${W-Rm}" y="${y(90)-5}" text-anchor="end">Target 90%</text>
+    <path class="ar" d="${area}"/><path class="ln" d="${line}"/>
+    <circle class="dt" cx="${x(last).toFixed(1)}" cy="${y(live).toFixed(1)}" r="5"/>
+    <text class="em" x="${x(last).toFixed(1)}" y="${(y(live)-10).toFixed(1)}" text-anchor="end">${live.toFixed(1)}%</text>
+    ${xl}</svg>`;
+}
+function buildReport(){
+  const o=otp();
+  const dep=BASE.dep+S.flights.filter(f=>f.departed).length;
+  const tot=BASE.dep+S.flights.length;
+  const canc=S.flights.filter(f=>f.cancelled).length;
+  const late=S.flights.filter(f=>!f.cancelled&&f.delay>15).length;
+  const spDone=S.specials.filter(s=>s.st===2).length;
+  const openC=S.cases.filter(c=>c.st<2).length;
+  const dgDone=S.dg.filter(x=>x.on).length;
+  const openI=S.inc.filter(i=>i.st<2).length;
+  const warnC=S.comp.filter(c=>c.st!=='good').length;
+  const watch=S.agencies.filter(a=>a.st!=='good').map(a=>a.n);
+  const shorts=S.roster.filter(r=>r.have<r.need).map(r=>r.n+' (short '+(r.need-r.have)+')');
+  const ta=S.budget.reduce((s,x)=>s+x.a,0), tb=S.budget.reduce((s,x)=>s+x.b,0);
+  const nearC=S.contracts.filter(c=>c.d<=45).length;
+  const sent=S.imp.filter(i=>i.sent).length;
+  return [
+    'Daily Operations Report · Suvarnabhumi Station',
+    dfmt.format(new Date())+' · Data as of '+nowHM()+' (simulated demo data)',
+    '',
+    '1) Flight operations',
+    '   Scheduled '+tot+' flights · departed '+dep+' · cancelled '+canc,
+    '   OTP '+o.toFixed(1)+'% (Target ≥ 90%) · delayed over 15 min: '+late+' flights',
+    '',
+    '2) Passenger services',
+    '   Special assistance completed '+spDone+'/'+S.specials.length+' · lounge '+S.lounge.n+'/'+S.lounge.cap+' seats',
+    '   Open baggage cases and complaints: '+openC,
+    '',
+    '3) Safety and compliance',
+    '   Shift checklist '+dgDone+'/'+S.dg.length+' · open incidents: '+openI,
+    '   Compliance items needing attention: '+warnC,
+    '',
+    '4) External coordination',
+    '   To monitor: '+watch.length+' agencies'+(watch.length?' ('+watch.join(', ')+')':'')+' · coordination entries today: '+S.coord.length,
+    '',
+    '5) Team and resources',
+    '   Shifts below target staffing: '+(shorts.length?shorts.join(', '):'none'),
+    '   Budget used this month: '+Math.round(ta/tb*100)+'% · contracts ending within 45 days: '+nearC,
+    '',
+    '6) Improvement proposals to head office',
+    '   '+S.imp.length+' proposals, '+sent+' sent'
+  ].join('\n');
+}
+function vReport(){
+  return `<div class="cols"><div>
+      <div class="sec-h"><h2>Daily report</h2><span class="sub">Generated from the latest data on this page</span></div>
+      <div class="rep" id="rep">${esc(buildReport())}</div>
+      <div class="btns"><button class="btn pri" data-a="copy">Copy report</button></div>
+    </div><div>
+      <div class="sec-h"><h2>OTP trend, 7 days</h2></div>
+      <div class="list pad">${otpChart()}</div>
+
+      <div class="sec-h"><h2>Month-to-date summary</h2><span class="sub">To date</span></div>
+      <div class="list scroll"><table class="tbl">
+        <tr><td>Flights operated</td><td>1,098</td></tr>
+        <tr><td>Average OTP</td><td>91.6%</td></tr>
+        <tr><td>Cancelled flights</td><td>3</td></tr>
+        <tr><td>Passengers</td><td>139,420</td></tr>
+        <tr><td>Baggage errors per 1,000 passengers</td><td>4.1</td></tr>
+      </table></div>
+    </div></div>
+    <div class="sec-h"><h2>Improvement proposals to head office</h2><span class="sub mono">${S.imp.filter(i=>i.sent).length}/${S.imp.length} sent</span></div>
+    <div class="list">${S.imp.map((x,i)=>`<div class="row"><div class="grow">${esc(x.t)}</div>${x.sent?chip('good','Sent'):`<button class="btn sm" data-a="imp" data-i="${i}">Send proposal</button>`}</div>`).join('')}</div>`;
+}
+
+/* ---------- + BKK → FUK (real data from external websites, checked 26 Oct 2026) ---------- */
+function barChart(items,maxV,label){
+  const W=340,H=160,Lm=30,Rm=8,Tm=16,Bm=24,n=items.length,bw=(W-Lm-Rm)/n;
+  const y=v=>Tm+(maxV-Math.min(v,maxV))*(H-Tm-Bm)/maxV;
+  const ticks=[0,60,120,180].filter(v=>v<=maxV);
+  const grid=ticks.map(v=>`<line class="gl" x1="${Lm}" x2="${W-Rm}" y1="${y(v)}" y2="${y(v)}"/><text x="${Lm-5}" y="${y(v)+3}" text-anchor="end">${v}</text>`).join('');
+  const bars=items.map((it,i)=>{
+    const x=Lm+i*bw+bw*0.18, w=bw*0.64, cls=it.v<=15?'bg':(it.v<=60?'bn':'bw');
+    return `<rect class="${cls}" x="${x.toFixed(1)}" y="${y(it.v).toFixed(1)}" width="${w.toFixed(1)}" height="${(y(0)-y(it.v)).toFixed(1)}" rx="2"/>`+
+      `<text class="vl" x="${(x+w/2).toFixed(1)}" y="${(y(it.v)-3).toFixed(1)}" text-anchor="middle">${it.v}</text>`+
+      `<text x="${(x+w/2).toFixed(1)}" y="${H-8}" text-anchor="middle">${esc(it.l)}</text>`;
+  }).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">${grid}<line class="tg" x1="${Lm}" x2="${W-Rm}" y1="${y(15)}" y2="${y(15)}"/>${bars}</svg>`;
+}
+function fukBlock(b){
+  return `<div class="bud">
+    <div class="bl"><span><b class="mono">${b.fl}</b> · ${b.al}</span>${chip(b.apk,b.ap)}</div>
+    <div class="facts">
+      <div><small>Departs Bangkok</small><b class="mono">${b.dep}</b></div>
+      <div><small>Arrives Fukuoka (Japan time)</small><b class="mono">${b.arr}</b></div>
+      <div><small>Duration</small><b>${b.dur}</b></div>
+      <div><small>Frequency</small><b>${b.freq}</b></div>
+      <div><small>Aircraft</small><b>${b.ac}</b></div>
+    </div>
+    <p class="note">${b.delay}</p>
+  </div>`;
+}
+function vFuk(){
+  const tg=[52,162,56,49,38,38,33,70,49,22,48].map((v,i)=>({l:String(15+i),v}));
+  const fd=[33,25,15,35,46,9,7].map((v,i)=>({l:String(17+i),v}));
+  const blocks=[
+    {fl:'TG 648',al:'Thai Airways',ap:'BKK Suvarnabhumi',apk:'acc',dep:'00:40 (Mon–Sat) · 01:00 (Sun)',arr:'08:00 / 08:10',dur:'5 h 10–20 min',freq:'Daily (7 flights/week)',ac:'A330-300 (may vary by day)',
+     delay:'<b>Delays:</b> In a sample of the latest 11 flights (15–25 Oct), departures ran <b>56 minutes</b> late on average, with a median of 49 minutes. No flight left within 15 minutes of schedule. The worst was 2 h 42 min late on 16 Oct. No cancellations were found. Arrivals in Fukuoka were mostly close to schedule, but on 25 Oct the flight arrived 1 h 6 min late.'},
+    {fl:'VZ 810',al:'Thai VietJet',ap:'BKK Suvarnabhumi',apk:'acc',dep:'00:50',arr:'07:55',dur:'5 h 5 min',freq:'Not daily (seen on 25 and 27 Oct)',ac:'A320 or 737 MAX 8',
+     delay:'<b>Delays:</b> On 25 Oct it departed at 01:29 (39 min late) and arrived at 08:40 (45 min late). Trip.com summarises the latest 30 flights as 29% on time with an average delay of 46 min, and lists 5 flights between 9 and 22 Oct as cancelled, but the page contradicts itself. <b>Low confidence.</b> Confirm operating days with the airline.'},
+    {fl:'FD 236',al:'Thai AirAsia',ap:'DMK Don Mueang',apk:'warn',dep:'23:45',arr:'07:05',dur:'5 h 20 min',freq:'Daily (flew every day 17–23 Oct)',ac:'A321neo',
+     delay:'<b>Delays:</b> The latest 7 flights departed <b>24 minutes</b> late on average (range 7–46 min), with 3 of 7 on time. Arrivals in Fukuoka were between 07:01 and 07:19, close to schedule every time. Trip.com summarises 30 flights as 37% on-time departures, 97% on-time arrivals and no cancellations.'},
+    {fl:'FD 736',al:'Thai AirAsia',ap:'DMK Don Mueang',apk:'warn',dep:'01:50',arr:'08:55',dur:'5 h 5 min',freq:'Uncertain (Wego lists Sunday)',ac:'No data',
+     delay:'<b>Status:</b> Trip.com shows this flight as <b>cancelled</b> (data of 23 Oct) and has no delay statistics. Check with the airline before booking.'}
+  ];
+  return `<div class="sec-h"><h2>Direct flights Bangkok → Fukuoka</h2><span class="sub">Data checked 26 Oct 2026</span></div>
+    <div class="list scroll"><table class="tbl">
+      <tr><th>Flight</th><th>Airport</th><th>Departs</th><th>Arrives</th></tr>
+      ${blocks.map(b=>`<tr><td><b class="mono">${b.fl}</b><br><small>${b.al}</small></td><td>${b.ap.split(' ')[0]}</td><td class="mono" style="text-align:left">${b.dep.split(' ')[0]}</td><td class="mono" style="text-align:left">${b.arr.split(' ')[0]}</td></tr>`).join('')}
+    </table></div>
+    <p class="foot">Every flight departs after midnight (or at 23:45), so passengers must check in the evening before. Departure times are Bangkok time and arrival times are Japan time (2 hours ahead of Thailand).</p>
+    <div class="sec-h"><h2>Details by airline</h2></div>
+    <div class="list">${blocks.map(fukBlock).join('')}</div>
+    <div class="cols"><div>
+      <div class="sec-h"><h2>TG 648 departure delay</h2><span class="sub">15–25 Oct</span></div>
+      <div class="list pad">${barChart(tg,180,'TG648 departure delay in minutes')}<p class="foot">The horizontal axis is the date and the vertical axis is minutes behind schedule. The dashed line marks 15 minutes. Green means 15 minutes or less.</p></div>
+    </div><div>
+      <div class="sec-h"><h2>FD 236 (Don Mueang) departure delay</h2><span class="sub">Latest 7 flights</span></div>
+      <div class="list pad">${barChart(fd,180,'FD236 departure delay in minutes')}<p class="foot">Dates follow the actual departure date.</p></div>
+    </div></div>
+    <div class="sec-h"><h2>Data caveats</h2></div>
+    <div class="list pad"><p class="note" style="margin-top:0">These figures come from flight-tracking and schedule websites, and some pages disagree with each other (for example on operating days and aircraft type). The winter schedule started on 25 Oct, so times may differ from earlier weeks. Delay statistics come from samples of a few dozen flights only. Confirm with the airline before booking or handling passengers.</p></div>
+    <div class="sec-h"><h2>Sources</h2></div>
+    <ol class="list srcs">
+      <li><a href="https://www.wego.com/schedules/bkk/fuk/flight-schedules-from-bangkok-to-fukuoka" target="_blank" rel="noopener">Wego · Bangkok–Fukuoka schedule</a></li>
+      <li><a href="https://www.flightstats.com/v2/flight-details/TG/648" target="_blank" rel="noopener">FlightStats · TG648</a></li>
+      <li><a href="https://www.planemapper.com/flights/TG648" target="_blank" rel="noopener">PlaneMapper · TG648 history</a></li>
+      <li><a href="https://us.trip.com/flights/status-vz810/" target="_blank" rel="noopener">Trip.com · VZ810</a></li>
+      <li><a href="https://us.trip.com/flights/status-fd236/" target="_blank" rel="noopener">Trip.com · FD236</a></li>
+      <li><a href="https://www.trip.com/flights/status-fd736" target="_blank" rel="noopener">Trip.com · FD736</a></li>
+      <li><a href="https://www.flightconnections.com/flights-from-bkk-to-fuk" target="_blank" rel="noopener">FlightConnections · BKK–FUK route</a></li>
+      <li><a href="https://www.nationthailand.com/business/corporate/40070584" target="_blank" rel="noopener">Nation Thailand · Thai Airways winter schedule</a></li>
+    </ol>`;
+}
+
+/* ---------- + 3D Airport ---------- */
+const GATES=[-54,-36,-18,0,18,36,54].map((x,i)=>({n:'D'+(i+1),x}));
+const PH_TH={land:'Landing',roll:'Rolling out',taxi:'Taxiing to gate',park:'At gate',dtaxi:'Taxiing to runway',hold:'Holding for departure',lineup:'Lining up',toroll:'Take-off roll',climb:'Climbing'};
+const GENERIC=[241,133,265,951,203,177,319,127,215,461,309];
+const ACCENTS=[0x0b6e8a,0xd9822b,0x4b5fb3,0x2f8f5b,0xb04a6a,0x6a7b86];
+const PRESETS={
+  high:{az:-0.55,el:0.68,r:210,tx:0,ty:0,tz:-8},
+  runway:{az:0.0,el:0.12,r:120,tx:0,ty:2,tz:-30},
+  tower:{az:1.3,el:0.2,r:100,tx:0,ty:4,tz:-16},
+  lounge:{az:-0.4,el:0.5,r:85,tx:84,ty:2,tz:42}
+};
+const LNG_PATH=[[64,31.5],[64,50],[90,50],[90,45.4]];
+const RW_Z=-36, TW_Z=-17, STAND_Z=2;
+const AIR={
+  ready:false,paused:false,active:false,looping:false,speed:1,planes:[],guests:[],slots:{},veh:{},seq:0,hseq:0,arrT:2,depT:5,last:0,clock:0,
+  cam:Object.assign({},PRESETS.high),
+  init(){
+    if(this.ready)return true;
+    if(typeof THREE==='undefined')return false;
+    const root=document.documentElement.dataset.theme;
+    const dark=(root!=='light'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)||root==='dark';
+    let renderer;
+    try{renderer=new THREE.WebGLRenderer({antialias:true})}catch(e){return false}
+    this.renderer=renderer;this.dark=dark;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+    const sky=dark?0x1f3347:0xbcd7e8;
+    const scene=this.scene=new THREE.Scene();
+    scene.background=new THREE.Color(sky);
+    scene.fog=new THREE.Fog(sky,300,720);
+    this.camera=new THREE.PerspectiveCamera(48,1.6,1,1400);
+    scene.add(new THREE.AmbientLight(dark?0x8fa4bd:0xffffff,dark?0.7:0.75));
+    const sun=new THREE.DirectionalLight(dark?0xffc89a:0xfff4e0,dark?0.75:0.85);
+    sun.position.set(-60,90,50);scene.add(sun);
+    const add=(w,h,d,c,x,y,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:c}));m.position.set(x,y,z);scene.add(m);return m};
+    const ground=new THREE.Mesh(new THREE.PlaneGeometry(1600,1600),new THREE.MeshLambertMaterial({color:dark?0x26352f:0x9db394}));
+    ground.rotation.x=-Math.PI/2;scene.add(ground);
+    add(520,0.2,14,0x3a4047,0,0.1,RW_Z);
+    for(let i=-25;i<=25;i++)add(6,0.05,0.5,0xe9ecef,i*10,0.24,RW_Z);
+    add(330,0.15,6,0x4a5057,0,0.08,TW_Z);
+    for(let x=-150;x<=150;x+=8)add(3,0.03,0.25,0xe3b73c,x,0.17,TW_Z);
+    add(6,0.15,24,0x4a5057,86,0.08,-26.5);
+    add(6,0.15,24,0x4a5057,-84,0.08,-26.5);
+    add(160,0.12,31,0x6b737a,0,0.06,-1.5);
+    add(140,8,16,dark?0x7f93a6:0xb7c6d2,0,4,22);
+    add(140,1.6,17,dark?0x35444f:0x5d6d7a,0,8.8,22);
+    add(140,2.6,0.4,dark?0xf1d98e:0x6f9fbf,0,4.6,13.9);
+    GATES.forEach(g=>{
+      add(3.2,3.2,5,0xcfd6dc,g.x,4.6,11.6);
+      const lab=this.label(g.n,'#ffffff','#0b6e8a');lab.position.set(g.x,12.5,14);lab.scale.set(7,2.6,1);scene.add(lab);
+      add(0.4,0.04,12,0xe3b73c,g.x,0.14,-2);
+    });
+    add(3.6,24,3.6,0xaab4bc,100,12,12);
+    const cab=add(8,4,8,dark?0xffe6a8:0x7fb0cf,100,26,12);cab.material.emissive=new THREE.Color(dark?0x6b5320:0x000000);
+    add(16,6,22,0x8a949c,-104,3,22);
+    add(16,6,22,0x8a949c,-104,3,-2);
+    add(16,6,22,0x8a949c,-124,3,10);
+    add(20,8,14,dark?0x8a7a66:0xd9c7a8,90,4,38);
+    add(21.5,0.8,15.5,dark?0x3b3a38:0x7a6b58,90,8.4,38);
+    const glass=add(16,3.4,0.3,0xffe2a0,90,3.8,45.1);glass.material.emissive=new THREE.Color(dark?0x7a5a1c:0x000000);
+    add(2.4,3.4,0.35,0x3a2f25,90,1.7,45.2);
+    add(26,0.12,3,0x8d949a,77,0.07,50);
+    add(3,0.12,18.5,0x8d949a,64,0.07,40.75);
+    add(3,0.12,5,0x8d949a,90,0.07,47.5);
+    const lc=document.createElement('canvas');lc.width=256;lc.height=96;
+    this.lngCtx=lc.getContext('2d');this.lngTex=new THREE.CanvasTexture(lc);
+    const ls=new THREE.Sprite(new THREE.SpriteMaterial({map:this.lngTex,transparent:true,depthTest:false}));
+    ls.renderOrder=5;ls.position.set(90,13.5,40);ls.scale.set(15,5.6,1);scene.add(ls);
+    const mat=c=>new THREE.MeshLambertMaterial({color:c});
+    this.gm={bodyG:new THREE.CylinderGeometry(0.42,0.42,1.5,8),headG:new THREE.SphereGeometry(0.34,8,8),
+      body:[0x2f6fb0,0xc2493a,0x3f8f5b,0xd9a23a,0x7a4ea0,0x3c4a56,0xd96f9a].map(mat),
+      skin:[0xf0c8a0,0xc99468,0x8a5a3c].map(mat)};
+    this.updateLoungeLabel();
+    const pts=[];
+    for(let x=-240;x<=240;x+=10){pts.push(x,0.6,-43,x,0.6,-29)}
+    const lg=new THREE.BufferGeometry();
+    lg.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+    scene.add(new THREE.Points(lg,new THREE.PointsMaterial({color:0xffe9b0,size:2.4})));
+    const el=renderer.domElement;
+    const ptr=new Map();
+    el.addEventListener('pointerdown',e=>{ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});try{el.setPointerCapture(e.pointerId)}catch(_){}});
+    el.addEventListener('pointermove',e=>{
+      const p=ptr.get(e.pointerId);if(!p)return;
+      if(ptr.size===1){
+        this.cam.az-=(e.clientX-p.x)*0.006;
+        this.cam.el=Math.max(0.05,Math.min(1.4,this.cam.el+(e.clientY-p.y)*0.005));
+      }else if(ptr.size===2){
+        const o=[...ptr.entries()].find(([id])=>id!==e.pointerId)[1];
+        const d0=Math.hypot(p.x-o.x,p.y-o.y),d1=Math.hypot(e.clientX-o.x,e.clientY-o.y);
+        if(d0>0&&d1>0)this.cam.r=Math.max(40,Math.min(300,this.cam.r*d0/d1));
+      }
+      p.x=e.clientX;p.y=e.clientY;
+    });
+    const up=e=>{ptr.delete(e.pointerId)};
+    el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);
+    el.addEventListener('wheel',e=>{e.preventDefault();this.cam.r=Math.max(40,Math.min(300,this.cam.r*(1+e.deltaY*0.001)))},{passive:false});
+    this.loop=t=>{
+      if(!this.active){this.looping=false;return}
+      requestAnimationFrame(this.loop);
+      const dt=Math.max(0,Math.min(0.05,(t-this.last)/1000));this.last=t;
+      if(!this.paused)this.update(dt*this.speed);
+      this.frame();
+    };
+    this.seedPlanes();
+    this.ready=true;
+    return true;
+  },
+  label(text,fg,bg){
+    const c=document.createElement('canvas');c.width=160;c.height=60;
+    const x=c.getContext('2d');
+    x.fillStyle=bg;x.beginPath();
+    if(x.roundRect)x.roundRect(4,4,152,52,14);else x.rect(4,4,152,52);
+    x.fill();
+    x.fillStyle=fg;x.font='600 30px monospace';x.textAlign='center';x.textBaseline='middle';x.fillText(text,80,32);
+    const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+    s.renderOrder=5;s.scale.set(10,3.75,1);return s;
+  },
+  makePlane(scale,accent){
+    const g=new THREE.Group();g.rotation.order='YZX';
+    const body=new THREE.Group();body.scale.setScalar(scale);body.position.y=1.85*scale;g.add(body);
+    const part=(geo,c,x,y,z,rx,ry,rz,par)=>{const m=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({color:c}));m.position.set(x,y,z);m.rotation.set(rx||0,ry||0,rz||0);(par||body).add(m);return m};
+    const C=THREE.CylinderGeometry,B=THREE.BoxGeometry;
+    part(new C(1.25,1.25,13,16),0xf2f4f6,0,0,0,0,0,Math.PI/2);
+    part(new THREE.ConeGeometry(1.25,3.2,16),0xf2f4f6,8.1,0,0,0,0,-Math.PI/2);
+    part(new THREE.ConeGeometry(1.25,4,16),0xe4e8eb,-8.4,0.3,0,0,0,Math.PI/2);
+    part(new B(8.2,0.2,0.05),0x24323f,1.4,0.45,1.19);
+    part(new B(8.2,0.2,0.05),0x24323f,1.4,0.45,-1.19);
+    part(new B(11,0.16,0.05),accent,0.6,-0.1,1.24);
+    part(new B(11,0.16,0.05),accent,0.6,-0.1,-1.24);
+    part(new B(0.9,0.3,1.9),0x24323f,7.2,0.5,0);
+    part(new B(3.6,0.22,8),0xdfe4e8,-0.6,-0.35,4.3,0,-0.55,0);
+    part(new B(3.6,0.22,8),0xdfe4e8,-0.6,-0.35,-4.3,0,0.55,0);
+    part(new B(2.2,3.6,0.3),accent,-7.4,2.5,0);
+    part(new B(1.8,0.2,6.4),0xdfe4e8,-7.6,0.5,0);
+    part(new C(0.6,0.6,2.2,12),0x8b959d,1.2,-1.0,3.4,0,0,Math.PI/2);
+    part(new C(0.6,0.6,2.2,12),0x8b959d,1.2,-1.0,-3.4,0,0,Math.PI/2);
+    const gear=new THREE.Group();body.add(gear);
+    part(new C(0.09,0.09,1.1,6),0x9aa5ad,6.2,-1.0,0,0,0,0,gear);
+    part(new C(0.28,0.28,0.2,10),0x20262b,6.2,-1.55,0,Math.PI/2,0,0,gear);
+    [1.5,-1.5].forEach(z=>{
+      part(new C(0.1,0.1,1.0,6),0x9aa5ad,-0.6,-0.95,z,0,0,0,gear);
+      part(new C(0.3,0.3,0.24,10),0x20262b,-0.6,-1.55,z,Math.PI/2,0,0,gear);
+    });
+    const lm=c=>new THREE.MeshBasicMaterial({color:c});
+    [[0x22d36b,7.7],[0xff3b30,-7.7]].forEach(([c,z])=>{
+      const m=new THREE.Mesh(new THREE.SphereGeometry(0.3,8,8),lm(c));m.position.set(-2.7,-0.2,z);body.add(m);
+    });
+    const strobe=new THREE.Mesh(new THREE.SphereGeometry(0.34,8,8),lm(0xffffff));strobe.position.set(-7.6,4.4,0);body.add(strobe);
+    g.userData.gear=gear;g.userData.strobe=strobe;
+    return g;
+  },
+  addPlane(gate,id,phase,real){
+    const scale=real?1:[0.88,1,1.1][Math.floor(Math.random()*3)];
+    const accent=real?ACCENTS[0]:ACCENTS[Math.floor(Math.random()*ACCENTS.length)];
+    const g=this.makePlane(scale,accent);
+    const lab=this.label(id,'#12202B','#ffffff');lab.position.set(0,9,0);g.add(lab);
+    this.scene.add(g);
+    const p={g,gate,id,phase,real:!!real,go:false,d:0,s:0,t:0,hq:0,minPark:55+Math.random()*55,curve:null,len:0,blink:Math.random()};
+    this.planes.push(p);if(gate)this.slots[gate]=p;
+    return p;
+  },
+  seedPlanes(){
+    GATES.forEach(gt=>{
+      const f=S.flights.find(x=>x.gate===gt.n&&!x.departed&&!x.cancelled&&doneCount(x)>=1);
+      if(f){
+        const p=this.addPlane(gt.n,f.id,'park',true);
+        p.g.position.set(gt.x,0,STAND_Z);p.g.rotation.y=-Math.PI/2;p.fid=f.id;
+        this.addVeh(gt.n);
+      }
+    });
+    ['D1','D3','D7'].forEach(n=>{
+      if(this.slots[n])return;
+      const gt=GATES.find(g=>g.n===n);
+      const p=this.addPlane(n,'PG '+GENERIC[this.seq++%GENERIC.length],'park',false);
+      p.g.position.set(gt.x,0,STAND_Z);p.g.rotation.y=-Math.PI/2;p.t=Math.random()*40;
+      this.addVeh(n);
+    });
+  },
+  addVeh(gn){
+    if(this.veh[gn])return;
+    const gt=GATES.find(g=>g.n===gn);if(!gt)return;
+    const grp=new THREE.Group();
+    const mk=(w,h,d,c,x,y,z,par)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:c}));m.position.set(x,y,z);(par||grp).add(m);return m};
+    const ft=new THREE.Group();ft.position.set(gt.x+4.5,0,-3.5);grp.add(ft);
+    mk(1.9,1.0,1.3,0xd4442a,0,0.9,1.5,ft);
+    mk(1.9,0.5,3.2,0x444b52,0,0.5,-0.2,ft);
+    const tank=new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,3,14),new THREE.MeshLambertMaterial({color:0xe8e8e8}));
+    tank.rotation.x=Math.PI/2;tank.position.set(0,1.5,-0.2);ft.add(tank);
+    const bt=new THREE.Group();grp.add(bt);
+    mk(1.2,0.9,1.6,0xe3b73c,0,0.6,0,bt);
+    for(let i=0;i<3;i++)mk(1.5,0.5,2.2,0x7b858c,0,0.45,-2.3*(i+1)-0.2,bt);
+    this.scene.add(grp);
+    this.veh[gn]={grp,bt,ph:Math.random()*6,gx:gt.x};
+  },
+  removeVeh(gn){
+    const v=this.veh[gn];if(!v)return;
+    this.scene.remove(v.grp);delete this.veh[gn];
+  },
+  freeGate(){
+    const free=GATES.filter(g=>!this.slots[g.n]);
+    return free.length?free[Math.floor(Math.random()*free.length)]:null;
+  },
+  spawnArrival(){
+    const gt=this.freeGate();if(!gt)return false;
+    const id='PG '+GENERIC[this.seq++%GENERIC.length];
+    const p=this.addPlane(gt.n,id,'land',false);
+    p.g.position.set(-220,40,RW_Z);p.g.rotation.y=0;return true;
+  },
+  startTaxi(p){
+    const gt=GATES.find(g=>g.n===p.gate),V=THREE.Vector3;
+    p.curve=new THREE.CatmullRomCurve3([new V(78,0,RW_Z),new V(86,0,-30),new V(86,0,-20),new V(80,0,TW_Z),new V(gt.x+12,0,-16),new V(gt.x,0,-8),new V(gt.x,0,STAND_Z)]);
+    p.len=p.curve.getLength();p.s=0;p.phase='taxi';
+  },
+  startDepart(p){
+    const gt=GATES.find(g=>g.n===p.gate),V=THREE.Vector3;
+    const pts=[new V(gt.x,0,STAND_Z),new V(gt.x,0,-8),new V(gt.x-9,0,-16.5)];
+    [24,42].forEach(o=>{if(gt.x-o>-58)pts.push(new V(gt.x-o,0,TW_Z))});
+    pts.push(new V(-66,0,TW_Z),new V(-78,0,-18.5),new V(-84,0,-20),new V(-84,0,-22.5));
+    p.curve=new THREE.CatmullRomCurve3(pts);
+    p.len=p.curve.getLength();p.s=0;p.phase='dtaxi';
+    delete this.slots[p.gate];this.removeVeh(p.gate);
+  },
+  startLineup(p){
+    const V=THREE.Vector3;
+    p.curve=new THREE.CatmullRomCurve3([new V(-84,0,-22.5),new V(-83,0,-30),new V(-77,0,-35.5),new V(-68,0,RW_Z)]);
+    p.len=p.curve.getLength();p.s=0;p.phase='lineup';
+  },
+  depart(gate){const p=this.slots[gate];if(p&&p.real){p.go=true;return true}return false},
+  departAny(){
+    const p=this.planes.find(q=>q.phase==='park');
+    if(p){p.go=true;return true}return false;
+  },
+  follow(p,u){
+    const pos=p.curve.getPointAt(u),tan=p.curve.getTangentAt(u);
+    p.g.position.copy(pos);p.g.rotation.y=Math.atan2(-tan.z,tan.x);
+  },
+  blocked(p,phases,anyDir){
+    const yaw=p.g.rotation.y,fx=Math.cos(yaw),fz=-Math.sin(yaw);
+    for(const q of this.planes){
+      if(q===p||phases.indexOf(q.phase)<0)continue;
+      const dx=q.g.position.x-p.g.position.x,dz=q.g.position.z-p.g.position.z;
+      if(anyDir){if(dx*dx+dz*dz<26*26)return true;continue}
+      const along=dx*fx+dz*fz,lat=Math.abs(dx*fz-dz*fx);
+      if(along>0&&along<26&&lat<9)return true;
+    }
+    return false;
+  },
+  canPush(){
+    return !this.planes.some(q=>q.phase==='land'||q.phase==='roll'||q.phase==='taxi'||(q.phase==='dtaxi'&&q.s<50));
+  },
+  step(p,dt){
+    switch(p.phase){
+      case 'land':{
+        p.d+=34*dt;const a=Math.min(1,p.d/160);
+        p.g.position.set(-220+160*a,40*(1-a)*(1-a),RW_Z);p.g.rotation.z=0.04*(1-a);
+        if(a>=1){p.phase='roll';p.d=0}
+        break}
+      case 'roll':{
+        const v=30-20*Math.min(1,p.d/138);p.d+=v*dt;
+        p.g.position.set(-60+Math.min(138,p.d),0,RW_Z);p.g.rotation.z=0;
+        if(p.d>=138)this.startTaxi(p);
+        break}
+      case 'taxi':{
+        let v=Math.min(10,2+(p.len-p.s)*0.9);
+        if(this.blocked(p,['taxi'],false))v=0;
+        p.s+=v*dt;const u=Math.min(1,p.s/p.len);this.follow(p,u);
+        if(u>=1){p.phase='park';p.t=0;p.g.rotation.y=-Math.PI/2;this.addVeh(p.gate)}
+        break}
+      case 'park':p.t+=dt;break;
+      case 'dtaxi':{
+        let v=Math.min(8,1.5+p.s*0.8);
+        if(this.blocked(p,['dtaxi','hold'],false))v=0;
+        p.s+=v*dt;const u=Math.min(1,p.s/p.len);this.follow(p,u);
+        if(p.s<20){
+          const tan=p.curve.getTangentAt(u),want=Math.atan2(-tan.z,tan.x);
+          let d=want+Math.PI/2;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;
+          p.g.rotation.y=-Math.PI/2+d*Math.max(0,Math.min(1,(p.s-8)/12));
+        }
+        if(u>=1){p.phase='hold';p.hq=this.hseq++}
+        break}
+      case 'hold':break;
+      case 'lineup':{
+        p.s+=6*dt;const u=Math.min(1,p.s/p.len);this.follow(p,u);
+        if(u>=1){p.phase='toroll';p.d=0;p.g.rotation.y=0}
+        break}
+      case 'toroll':{
+        const v=Math.min(46,Math.sqrt(64+17*p.d));p.d+=v*dt;
+        p.g.position.set(-68+p.d,0,RW_Z);p.g.rotation.y=0;
+        p.g.rotation.z=0.12*Math.max(0,Math.min(1,(p.d-92)/18));
+        if(p.d>=110){p.phase='climb';p.d=0}
+        break}
+      case 'climb':{
+        p.d+=44*dt;const L=Math.hypot(220,80),k=p.d/L;
+        p.g.position.set(42+220*k,80*k,RW_Z);p.g.rotation.z=Math.atan2(80,220);
+        if(p.d>=L)p.dead=true;
+        break}
+    }
+    p.g.userData.gear.visible=p.g.position.y<4;
+  },
+  update(dt){
+    this.clock+=dt;
+    this.moveGuests(dt);
+    this.planes.forEach(p=>{
+      this.step(p,dt);
+      p.g.userData.strobe.visible=((this.clock*0.9+p.blink)%1)<0.1;
+    });
+    this.planes=this.planes.filter(p=>{if(p.dead){this.scene.remove(p.g);return false}return true});
+    Object.keys(this.veh).forEach(k=>{
+      const v=this.veh[k];v.ph+=dt*0.5;
+      const s=Math.sin(v.ph),c=Math.cos(v.ph);
+      v.bt.position.set(v.gx+3,0,-13.5+2.6*s);
+      v.bt.rotation.y=c>0?0:Math.PI;
+    });
+    const rwFree=!this.planes.some(q=>q.phase==='land'||q.phase==='roll'||q.phase==='toroll'||q.phase==='lineup');
+    const holders=this.planes.filter(q=>q.phase==='hold').sort((a,b)=>a.hq-b.hq);
+    if(rwFree&&holders.length)this.startLineup(holders[0]);
+    this.arrT-=dt;this.depT-=dt;
+    if(this.arrT<=0){
+      const taxiing=this.planes.filter(q=>q.phase==='taxi').length;
+      const outbound=this.planes.some(q=>q.phase==='dtaxi');
+      const waiting=this.planes.some(q=>q.phase==='park'&&(q.go||(!q.real&&q.t>q.minPark)));
+      if(rwFree&&!holders.length&&!outbound&&!waiting&&taxiing<3&&this.spawnArrival())this.arrT=5+Math.random()*5;else this.arrT=1.5;
+    }
+    if(this.depT<=0){
+      const p=this.planes.find(q=>q.phase==='park'&&(q.go||(!q.real&&q.t>q.minPark))&&this.canPush());
+      if(p){this.startDepart(p);this.depT=4+Math.random()*5}else this.depT=1.5;
+    }
+  },
+  frame(){
+    const c=this.cam,cam=this.camera;
+    cam.position.set(c.tx+c.r*Math.cos(c.el)*Math.sin(c.az),c.ty+c.r*Math.sin(c.el),c.tz+c.r*Math.cos(c.el)*Math.cos(c.az));
+    cam.lookAt(c.tx,c.ty,c.tz);
+    this.renderer.render(this.scene,cam);
+  },
+  resize(host){
+    const w=host.clientWidth||320,h=host.clientHeight||320;
+    this.renderer.setSize(w,h,false);
+    this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
+  },
+  preset(k){if(PRESETS[k])this.cam=Object.assign({},PRESETS[k])},
+  updateLoungeLabel(){
+    if(!this.lngCtx)return;
+    const x=this.lngCtx,L=S.lounge;
+    x.fillStyle='#8a5a1c';x.beginPath();
+    if(x.roundRect)x.roundRect(4,4,248,88,16);else x.rect(4,4,248,88);
+    x.fill();
+    x.fillStyle='#ffffff';x.textAlign='center';x.textBaseline='middle';
+    x.font='600 26px monospace';x.fillText('LOUNGE',128,32);
+    x.font='600 34px monospace';x.fillText(L.n+' / '+L.cap,128,66);
+    this.lngTex.needsUpdate=true;
+  },
+  spawnGuest(kind){
+    const base=LNG_PATH.map(p=>p.slice());
+    const pts=kind==='in'?base:base.reverse();
+    const cum=[0];
+    for(let i=1;i<pts.length;i++)cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
+    const g=new THREE.Group(),bob=new THREE.Group();g.add(bob);
+    const pick=a=>a[Math.floor(Math.random()*a.length)];
+    const b=new THREE.Mesh(this.gm.bodyG,pick(this.gm.body));b.position.y=1.0;bob.add(b);
+    const hd=new THREE.Mesh(this.gm.headG,pick(this.gm.skin));hd.position.y=2.05;bob.add(hd);
+    g.userData.bob=bob;
+    g.position.set(pts[0][0],0,pts[0][1]);
+    this.scene.add(g);
+    this.guests.push({g,kind,pts,cum,len:cum[cum.length-1],s:0,v:4.2+Math.random()*1.6});
+    if(kind==='out')lngApply('out');else S.lng.pin++;
+  },
+  moveGuests(dt){
+    this.guests=this.guests.filter(q=>{
+      q.s+=q.v*dt;
+      if(q.s>=q.len){
+        this.scene.remove(q.g);
+        if(q.kind==='in'){S.lng.pin=Math.max(0,S.lng.pin-1);lngApply('in')}
+        return false;
+      }
+      let i=1;while(i<q.cum.length-1&&q.cum[i]<q.s)i++;
+      const a=q.pts[i-1],b=q.pts[i],t=(q.s-q.cum[i-1])/(q.cum[i]-q.cum[i-1]);
+      q.g.position.set(a[0]+(b[0]-a[0])*t,0,a[1]+(b[1]-a[1])*t);
+      q.g.userData.bob.position.y=Math.abs(Math.sin(q.s*1.6))*0.14;
+      return true;
+    });
+  },
+  flushGuests(){
+    this.guests.forEach(q=>{this.scene.remove(q.g);if(q.kind==='in')lngApply('in')});
+    this.guests=[];S.lng.pin=0;
+  }
+};
+function gateRows(){
+  const rows=GATES.map(g=>{
+    const p=AIR.ready?AIR.slots[g.n]:null;
+    const st=p?chip(p.phase==='park'?(p.real?'good':'acc'):'acc',PH_TH[p.phase]):chip('mut','Vacant');
+    return `<div class="row"><b class="mono">${g.n}</b><div class="grow">${p?`<b class="mono">${esc(p.id)}</b>${p.real?' <small>Flight from the Flights tab</small>':' <small>Demo traffic</small>'}`:'<small>No aircraft</small>'}</div>${st}</div>`;
+  });
+  const rw=AIR.ready?AIR.planes.filter(p=>['land','roll','hold','lineup','toroll','climb'].indexOf(p.phase)>=0||p.phase==='dtaxi'):[];
+  const rwRow=`<div class="row"><b class="mono">RWY</b><div class="grow">${rw.length?rw.map(p=>`<b class="mono">${esc(p.id)}</b> <small>${PH_TH[p.phase]}</small>`).join('<br>'):'<small>Runway clear</small>'}</div>${chip(rw.length?'warn':'good',rw.length?'In use':'Clear')}</div>`;
+  const L=S.lounge,lp=Math.round(L.n/L.cap*100);
+  const lngRow=`<div class="row"><b class="mono">LNG</b><div class="grow"><b class="mono">${L.n}/${L.cap}</b> <small>guests in the lounge${AIR.ready&&AIR.guests.length?' · '+AIR.guests.length+' walking':''}</small></div>${chip(lp>=90?'bad':(lp>=75?'warn':'good'),lp+'%','mono')}</div>`;
+  return rows.join('')+rwRow+lngRow;
+}
+function vAir(){
+  return `<div class="sec-h"><h2>3D Airport</h2><span class="sub">Drag to rotate · pinch or scroll to zoom</span></div>
+    <div class="air" id="air3d"></div>
+    <div class="hud">
+      <button class="btn sm pri" data-a="air-arr">Arrival</button>
+      <button class="btn sm" data-a="air-dep">Release departure</button>
+      <button class="btn sm" data-a="air-cam" data-v="high">High view</button>
+      <button class="btn sm" data-a="air-cam" data-v="runway">Runway side</button>
+      <button class="btn sm" data-a="air-cam" data-v="tower">Tower</button>
+      <button class="btn sm" data-a="air-cam" data-v="lounge">Lounge view</button>
+      <button class="btn sm" data-a="air-speed">Speed ×${AIR.speed}</button>
+      <button class="btn sm" data-a="air-pause">${AIR.paused?'Resume':'Pause'}</button>
+    </div>
+    <div class="sec-h"><h2>Gate and runway status</h2><span class="sub mono" id="aircount">${AIR.ready?AIR.planes.length+' aircraft in the area':''}</span></div>
+    <div class="list" id="gatelist">${gateRows()}</div>
+    <p class="foot">This is a fictional model, not a real airport layout. Gates D2, D5 and D6 hold aircraft for the flights being prepared in the Flights tab. When you release a flight there, the aircraft at the same gate taxis out and takes off. The other aircraft are demo traffic that lands and departs continuously, and aircraft waiting to depart queue at the runway threshold. Guests walk between the terminal and the lounge building, and the lounge count changes as they enter or leave.</p>`;
+}
+const AIRUI={
+  mount(){
+    const host=document.getElementById('air3d');if(!host)return;
+    if(!AIR.init()){host.innerHTML='<div class="msg">This device or browser cannot show 3D, but the gate status below still works.</div>';return}
+    host.appendChild(AIR.renderer.domElement);AIR.resize(host);
+    AIR.active=true;
+    if(!AIR.looping){AIR.looping=true;AIR.last=performance.now();requestAnimationFrame(AIR.loop)}
+  },
+  leave(){AIR.active=false;if(AIR.ready)AIR.flushGuests()}
+};
+
+const VIEWS={ops:vOps,pax:vPax,safety:vSafety,coord:vCoord,team:vTeam,report:vReport,fuk:vFuk,air:vAir};
+function render(){
+  renderStats();renderTabs();
+  document.getElementById('view').innerHTML=(VIEWS[S.tab]||vOps)();
+  if(S.tab==='air')AIRUI.mount();else AIRUI.leave();
+}
+
+/* ---------- actions ---------- */
+function act(a,d){
+  switch(a){
+    case 'tab':
+      S.tab=d.v;S.confirm=null;render();window.scrollTo(0,0);return;
+    case 'sel':
+      S.sel=S.sel===d.id?null:d.id;S.confirm=null;delete S.form.dmin;delete S.form.dcode;break;
+    case 'task':{
+      const f=fl(d.id);if(!f||f.departed||f.cancelled)return;
+      const t=TASKS.find(x=>x.k===d.k);
+      f.tasks[d.k]=!f.tasks[d.k];
+      if(f.tasks[d.k]) addLog(f.id+' '+t.t+' completed');
+      break;}
+    case 'delay':{
+      const f=fl(d.id);if(!f)return;
+      const m=Math.max(0,parseInt(val('dmin',f.delay||0),10)||0);
+      const code=val('dcode',f.reason||'93');
+      f.delay=m;f.reason=m>0?code:'';
+      addLog(m>0?f.id+' delayed '+m+' min · '+REASONS[code]:f.id+' back on schedule');
+      delete S.form.dmin;delete S.form.dcode;
+      toast(m>0?'Saved: '+f.id+' delayed '+m+' min':f.id+' on schedule');
+      break;}
+    case 'release':{
+      const f=fl(d.id);if(!f||doneCount(f)<6)return;
+      f.departed=true;S.sel=null;S.confirm=null;
+      if(AIR.ready)AIR.depart(f.gate);
+      addLog(f.id+' departed '+(f.delay>15?f.delay+' min late':'on time'));
+      toast(f.id+' departed');
+      break;}
+    case 'cancel':S.confirm=d.id;break;
+    case 'cancel-no':S.confirm=null;break;
+    case 'cancel-yes':{
+      const f=fl(d.id);if(!f)return;
+      f.cancelled=true;S.sel=null;S.confirm=null;
+      addLog(f.id+' cancelled. Rebooking and care started for '+f.pax+' passengers');
+      toast(f.id+' cancelled');
+      break;}
+    case 'sp':{const s=S.specials.find(x=>String(x.id)===d.id);if(s&&s.st<2){s.st++;addLog(s.f+' passenger '+s.type+' · '+STS[s.st])}break;}
+    case 'case':{const c=S.cases.find(x=>x.id===d.id);if(c&&c.st<2){c.st++;addLog(c.id+' · '+CST[c.st])}break;}
+    case 'lounge':{
+      const n=parseInt(d.n,10);const L=S.lounge;
+      L.n=Math.max(0,Math.min(L.cap,L.n+n));if(AIR.ready)AIR.updateLoungeLabel();break;}
+    case 'lng-auto':{S.lng.auto=!S.lng.auto;break;}
+    case 'dg':{const x=S.dg[parseInt(d.i,10)];if(x)x.on=!x.on;break;}
+    case 'inc':{const i=S.inc.find(x=>x.id===d.id);if(i&&i.st<2){i.st++;addLog(i.id+' · '+IST[i.st])}break;}
+    case 'inc-add':{
+      const txt=String(val('inc-d','')).trim();
+      if(!txt){toast('Enter the incident details before saving');return;}
+      const id='SR-2610-0'+String(S.incNext++).padStart(2,'0');
+      S.inc.unshift({id,c:val('inc-c','Ramp safety'),sev:val('inc-s','Low'),d:txt,st:0});
+      addLog('Incident '+id+' logged · '+val('inc-c','Ramp safety'));
+      delete S.form['inc-d'];
+      toast('Incident '+id+' saved');
+      break;}
+    case 'co-add':{
+      const m=String(val('co-m','')).trim();
+      if(!m){toast('Type the coordination message before adding it');return;}
+      S.coord.unshift({t:nowHM(),a:val('co-a',S.agencies[0].n),m});
+      delete S.form['co-m'];
+      toast('Coordination entry added');
+      break;}
+    case 'staff':{
+      const r=S.roster[parseInt(d.i,10)];
+      if(r&&r.have<r.need){
+        r.have++;S.budget[0].a+=3;
+        addLog('Overtime staff called in for '+r.n+' ('+r.have+'/'+r.need+')');
+        toast('Overtime staff called in for '+r.n);
+      }
+      break;}
+    case 'imp':{const x=S.imp[parseInt(d.i,10)];if(x){x.sent=true;toast('Proposal sent to head office')}break;}
+    case 'air-arr':{if(AIR.ready){AIR.arrT=0;if(!AIR.freeGate())toast('All gates are full. Release a departure first')}break;}
+    case 'air-dep':{if(AIR.ready){if(AIR.departAny())toast('Aircraft released from the gate');else toast('No aircraft are parked at a gate yet')}break;}
+    case 'air-cam':{if(AIR.ready)AIR.preset(d.v);break;}
+    case 'air-pause':{AIR.paused=!AIR.paused;break;}
+    case 'air-speed':{AIR.speed=AIR.speed>=3?1:AIR.speed+1;break;}
+    case 'copy':{copyReport();return;}
+    default:return;
+  }
+  render();
+}
+async function copyReport(){
+  const text=buildReport();
+  try{
+    await navigator.clipboard.writeText(text);
+    toast('Report copied');
+  }catch(e){
+    const el=document.getElementById('rep');
+    if(el){const r=document.createRange();r.selectNodeContents(el);const s=window.getSelection();s.removeAllRanges();s.addRange(r)}
+    toast('Report text selected. You can copy it now');
+  }
+}
+
+document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('[data-a]');
+  if(!b||b.disabled)return;
+  act(b.dataset.a,b.dataset);
+});
+const saveField=e=>{const t=e.target;if(t&&t.id&&(t.tagName==='INPUT'||t.tagName==='SELECT'||t.tagName==='TEXTAREA'))S.form[t.id]=t.value};
+document.addEventListener('input',saveField);
+document.addEventListener('change',saveField);
+
+function tick(){
+  const c=document.getElementById('clock'),d=document.getElementById('dt');
+  if(c)c.textContent=nowHM();
+  if(d)d.textContent=dfmt.format(new Date());
+}
+function lngRefresh(){
+  const c=document.getElementById('lng-card');if(c)c.innerHTML=loungeCard();
+  if(AIR.ready)AIR.updateLoungeLabel();
+}
+function lngApply(kind){
+  const L=S.lounge;
+  if(kind==='in')L.n=Math.min(L.cap,L.n+1);else L.n=Math.max(0,L.n-1);
+  S.lng.log.unshift({t:nowHM(),k:kind,n:L.n});
+  S.lng.log=S.lng.log.slice(0,6);
+  lngRefresh();
+}
+function lngTick(){
+  const g=S.lng,L=S.lounge;
+  if(!g.auto)return;
+  const walking=AIR.ready&&AIR.active;
+  if(walking&&AIR.paused)return;
+  g.t-=1;if(g.t>0)return;
+  g.t=1+Math.floor(Math.random()*4);
+  const proj=L.n+g.pin;
+  const target=82+14*Math.sin(Date.now()/90000);
+  const pIn=Math.max(0.15,Math.min(0.85,0.5+(target-proj)/60));
+  const kind=Math.random()<pIn?'in':'out';
+  if(kind==='in'&&proj>=L.cap)return;
+  if(kind==='out'&&L.n<=0)return;
+  if(walking)AIR.spawnGuest(kind);else lngApply(kind);
+}
+(function boot(){
+  const h=String(location.hash||'').slice(1);
+  if(TABS.some(t=>t.k===h))S.tab=h;
+  tick();render();
+  setInterval(tick,15000);
+  setInterval(lngTick,1000);
+  setInterval(()=>{
+    if(S.tab!=='air'||!AIR.ready)return;
+    const el=document.getElementById('gatelist');if(el)el.innerHTML=gateRows();
+    const ac=document.getElementById('aircount');if(ac)ac.textContent=AIR.planes.length+' aircraft in the area';
+  },1000);
+  window.addEventListener('resize',()=>{
+    const host=document.getElementById('air3d');
+    if(S.tab==='air'&&AIR.ready&&host)AIR.resize(host);
+  });
+})();
+</script>
+</body>
+</html>
