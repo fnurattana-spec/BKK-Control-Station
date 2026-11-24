@@ -1156,7 +1156,7 @@ const AIR={
     const pick=a=>a[Math.floor(Math.random()*a.length)];
     const b=new THREE.Mesh(this.gm.bodyG,pick(this.gm.body));b.position.y=1.0;bob.add(b);
     const hd=new THREE.Mesh(this.gm.headG,pick(this.gm.skin));hd.position.y=2.05;bob.add(hd);
-    g.userData.bob=bob;
+    g.userData.bob=bob;g.scale.setScalar(2.3);
     g.position.set(pts[0][0],0,pts[0][1]);
     this.scene.add(g);
     this.guests.push({g,kind,pts,cum,len:cum[cum.length-1],s:0,v:4.2+Math.random()*1.6});
@@ -1195,7 +1195,7 @@ function gateRows(){
   return rows.join('')+rwRow+lngRow;
 }
 function vAir(){
-  return `<div class="sec-h"><h2>3D Airport</h2><span class="sub">Drag to rotate · pinch or scroll to zoom</span></div>
+  return `<div class="sec-h"><h2>3D Airport</h2><span class="sub">Drag to rotate · pinch or scroll to zoom · tap Lounge view to see the guests</span></div>
     <div class="air" id="air3d"></div>
     <div class="hud">
       <button class="btn sm pri" data-a="air-arr">Arrival</button>
@@ -1203,7 +1203,7 @@ function vAir(){
       <button class="btn sm" data-a="air-cam" data-v="high">High view</button>
       <button class="btn sm" data-a="air-cam" data-v="runway">Runway side</button>
       <button class="btn sm" data-a="air-cam" data-v="tower">Tower</button>
-      <button class="btn sm" data-a="air-cam" data-v="lounge">Lounge view</button>
+      <button class="btn sm pri" data-a="air-cam" data-v="lounge">Lounge view</button>
       <button class="btn sm" data-a="air-speed">Speed ×${AIR.speed}</button>
       <button class="btn sm" data-a="air-pause">${AIR.paused?'Resume':'Pause'}</button>
     </div>
@@ -1351,8 +1351,9 @@ function lngTick(){
   if(!g.auto)return;
   const walking=AIR.ready&&AIR.active;
   if(walking&&AIR.paused)return;
-  g.t-=1;if(g.t>0)return;
-  g.t=1+Math.floor(Math.random()*4);
+  g.t-=0.5;if(g.t>0)return;
+  g.t=walking?0.5+Math.random():1+Math.floor(Math.random()*4);
+  if(walking&&AIR.guests.length>=14)return;
   const proj=L.n+g.pin;
   const target=82+14*Math.sin(Date.now()/90000);
   const pIn=Math.max(0.15,Math.min(0.85,0.5+(target-proj)/60));
@@ -1366,7 +1367,7 @@ function lngTick(){
   if(TABS.some(t=>t.k===h))S.tab=h;
   tick();render();
   setInterval(tick,15000);
-  setInterval(lngTick,1000);
+  setInterval(lngTick,500);
   setInterval(()=>{
     if(S.tab!=='air'||!AIR.ready)return;
     const el=document.getElementById('gatelist');if(el)el.innerHTML=gateRows();
