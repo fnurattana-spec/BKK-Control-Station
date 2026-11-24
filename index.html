@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
-<title>Station Control BKK</title>
+<title>Station Control KP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -212,8 +212,8 @@ textarea{min-height:76px;resize:vertical}
     <div class="brand">
       <span class="logo" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13.5 21 4l-5 16-4.5-6.5L3 13.5Z"/><path d="m11.5 13.5 9.5-9.5"/></svg></span>
       <div>
-        <p class="eyebrow mono">STATION CONTROL · BKK</p>
-        <h1>Suvarnabhumi Station</h1>
+        <p class="eyebrow mono">STATION CONTROL · KP</p>
+        <h1>KP Station</h1>
         <p class="role">Station Manager · Station Control Centre</p>
       </div>
     </div>
@@ -679,7 +679,7 @@ function buildReport(){
   const nearC=S.contracts.filter(c=>c.d<=45).length;
   const sent=S.imp.filter(i=>i.sent).length;
   return [
-    'Daily Operations Report · Suvarnabhumi Station',
+    'Daily Operations Report · KP Station',
     dfmt.format(new Date())+' · Data as of '+nowHM()+' (simulated demo data)',
     '',
     '1) Flight operations',
@@ -1379,5 +1379,3 @@ function lngTick(){
   });
 })();
 </script>
-</body>
-</html>
